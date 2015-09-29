@@ -1,0 +1,22 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <title>Irmin-JS test page</title>
+  </head>
+  <body>
+    <p>If the JavaScript is working, you should see some output here:</p>
+    <pre id='main'></pre>
+    <script type="text/javascript" src="../_build/lib/irmin_js.js"></script>
+    <script type="text/javascript" src="tests.js"></script>
+    <script type="text/javascript">
+function log(msg) {
+	var text = document.createTextNode(msg + "\n");
+	document.getElementById('main').appendChild(text);
+}
+
+var memTest = irmin.memRepo().then(function (repo) { irmin_tests.testIrmin(repo, log) });
+console.log("test_in_memory: " + memTest);
+    </script>
+  </body>
+</html>
