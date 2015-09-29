@@ -1,0 +1,3 @@
+true: warn(A), strict_sequence
+true: syntax(camlp4o), package(irmin.mem, js_of_ocaml, js_of_ocaml.syntax)
+<lib>: include

@@ -1,0 +1,3 @@
+S lib
+B _build/lib
+PKG irmin irmin.mem js_of_ocaml
