@@ -1,0 +1,17 @@
+opam-version: "1.2"
+name: "irmin-js"
+version: "dev"
+maintainer: "Thomas Leonard <talex5@gmail.com>"
+authors: "Thomas Leonard <talex5@gmail.com>"
+homepage: "https://github.com/talex5/irmin-js"
+bug-reports: "https://github.com/talex5/irmin-js/issues"
+license: "BSD-2-Clause"
+dev-repo: "https://github.com/talex5/irmin-js.git"
+build: [
+  [make]
+]
+depends: [
+  "irmin-indexeddb"
+  "js_of_ocaml"
+  "ocamlfind" {build}
+]
