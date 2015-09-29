@@ -6,7 +6,7 @@ JFLAGS =
 
 all: test
 	
-test: _build/lib/irmin_js.js
+test:
 	if [ -f /usr/bin/nodejs ]; then nodejs examples/node.js; else node examples/node.js; fi
 
 _build/lib/irmin_js.js: irmin_js
