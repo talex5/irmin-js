@@ -1,79 +1,97 @@
+(* Copyright (C) 2015, Thomas Leonard.
+   See the README file for details. *)
+
+(** Implements Irmin_js_api. *)
+
 open Lwt
+open Irmin_js_api
 
-type 'a export = (unit, 'a) Js.meth_callback Js.writeonly_prop
-
-type js_string = Js.js_string Js.t
-
-class type printable = object
-  method toString : (unit -> js_string) export
-end
-
-class type ['a] promise = object
-  inherit printable
-  method _then : (('a -> 'b promise Js.t) -> 'b promise Js.t) export
-end
-
-type 'a p = 'a promise Js.t
-
-type 'a js_opt = 'a Js.Opt.t
-
-class type branch = object
-  inherit printable
-  method head : (unit -> js_string js_opt p) export
-  method update : (js_string -> js_string -> unit p) export
-  method read : (js_string -> js_string js_opt p) export
-end
-
-class type repo = object
-  inherit printable
-  method branch : (js_string -> branch Js.t p) export
-end
-
-let rec js_promise_of (type a) (t:a Lwt.t) : a p =
-  let and_then (cb : a -> 'b p) : 'b p =
-    js_promise_of (t >>= fun v -> Js.Unsafe.fun_call cb [| Js.Unsafe.inject v |]) in
+(** Wrap an Lwt promise to provide a Javascript promise object. *)
+let rec js_promise_of (type a) (t:a Lwt.t) : a promise Js.t =
+  let and_then cb =
+    js_promise_of begin
+      t >>= fun v ->
+      let p = Js.Unsafe.fun_call cb [| Js.Unsafe.inject v |] in
+      match Js.typeof p |> Js.to_string with
+      | "object" ->
+          let lwt : _ Lwt.t Js.Optdef.t = Js.Unsafe.get p (Js.string "lwtThread") in
+          Js.Optdef.get lwt (fun () -> failwith "Not an irmin-js promise!")
+      | "undefined" ->
+          return (Obj.magic ())
+      | ty -> failwith (Printf.sprintf "then() callback should return a promise object, not %S" ty)
+    end in
   let to_string () =
-    Js.string "<promise>" in
-  let promise : a p = Js.Unsafe.obj [||] in
+    let state =
+      match Lwt.state t with
+      | Sleep -> "unresolved"
+      | Fail ex -> Printexc.to_string ex
+      | Return _ -> "ok" in
+    Js.string (Printf.sprintf "<promise:%s>" state) in
+  let promise = Js.Unsafe.obj [||] in
+  promise##lwtThread <- t;
+  let promise = (promise :> a promise Js.t) in
   promise##_then <- Js.wrap_callback and_then |> Obj.magic;
   promise##toString <- Js.wrap_callback to_string;
   promise
 
-let task msg =
+let id_task t = t
+
+let commit_metadata owner msg =
+  let owner = Js.to_string owner in
+  let msg = Js.to_string msg in
   let date = Unix.gettimeofday () |> Int64.of_float in
-  Irmin.Task.create ~date ~owner:"irmin_js" msg
+  Irmin.Task.create ~date ~owner msg
+
+(* Irmin currently requires commit metadata for all operations, but it's only
+   used for writes. For reads, we use this dummy value. *)
+let dummy_msg =
+  Irmin.Task.create ~date:0L ~owner:"irmin-js" "unused"
+
+let key_of_js (arr:Js.js_string Js.t Js.js_array Js.t) =
+  let callback acc seg _idx _arr =
+    Js.to_string seg :: acc in
+  arr##reduce_init(callback, [])
 
 module Repo (Store : Irmin.BASIC with type key = string list and type value = string) = struct
-  let key_of_js k = [Js.to_string k] (* TODO: use paths *)
+  let read store key =
+    js_promise_of begin
+      let key = key_of_js key in
+      Store.read (store dummy_msg) key >|= function
+      | None -> Js.Opt.empty
+      | Some value -> Js.Opt.return (Js.string value)
+    end
+
+  let commit config hash =
+    let str_hash = Irmin.Hash.SHA1.to_hum hash in
+    Store.of_head config id_task hash >>= fun store ->
+    let c : commit Js.t = Js.Unsafe.obj [||] in
+    c##hash <- Js.string str_hash;
+    c##toString <- Js.wrap_callback (fun () -> Printf.sprintf "<commit %S>" str_hash |> Js.string);
+    c##read <- Js.wrap_callback (read store);
+    return c
 
   let branch config name =
     js_promise_of begin
       let name = Js.to_string name in
-      Store.of_tag config task name >>= fun store ->
+      Store.of_tag config id_task name >>= fun store ->
       let b : branch Js.t = Js.Unsafe.obj [||] in
       let head () =
         js_promise_of begin
-          Store.head (store "head") >|= function
-          | None -> Js.Opt.empty
-          | Some head -> Js.Opt.return (Js.string (Irmin.Hash.SHA1.to_hum head))
+          Store.head (store dummy_msg) >>= function
+          | None -> return Js.Opt.empty
+          | Some hash ->
+              commit config hash >|= Js.Opt.return
         end in
-      let read key =
-        js_promise_of begin
-          let key = key_of_js key in
-          Store.read (store "update") key >|= function
-          | None -> Js.Opt.empty
-          | Some value -> Js.Opt.return (Js.string value)
-        end in
-      let update key value =
+      let update task key value =
         js_promise_of begin
           let key = key_of_js key in
           let value = Js.to_string value in
-          Store.update (store "update") key value
+          Store.update (store task) key value
         end in
       b##head <- Js.wrap_callback head;
       b##toString <- Js.wrap_callback (fun () -> Printf.sprintf "<branch %S>" name |> Js.string);
       b##update <- Js.wrap_callback update;
-      b##read <- Js.wrap_callback read;
+      b##read <- Js.wrap_callback (read store);
       return b
     end
 
@@ -91,8 +109,11 @@ let mem_repo () = js_promise_of begin
     R.repo config
   end
 
+let resolve x = js_promise_of (return x)
+
 let () =
-  Js.Unsafe.global##irmin <-
-    Js.Unsafe.obj [|
-      ("mem_repo", Js.Unsafe.inject (Js.wrap_meth_callback mem_repo));
-    |]
+  let irmin : irmin Js.t = Js.Unsafe.obj [||] in
+  irmin##resolve <- Js.wrap_callback resolve;
+  irmin##memRepo <- Js.wrap_callback mem_repo;
+  irmin##commitMetadata <- Js.wrap_callback commit_metadata;
+  Js.Unsafe.global##irmin <- irmin;

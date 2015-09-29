@@ -14,3 +14,6 @@ _build/lib/irmin_js.js: irmin_js
 
 irmin_js:
 	ocamlbuild -use-ocamlfind -no-links lib/irmin_js.byte
+
+clean:
+	rm -rf _build

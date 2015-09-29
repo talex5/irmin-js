@@ -1,25 +1,17 @@
 require('../_build/lib/irmin_js');
 
-irmin.mem_repo()
-  .then(function (repo) {
-    console.log("repo: " + repo);
-    repo.branch("master")
-      .then(function (master) {
-        console.log("branch: " + master);
-        master.read('key').then(function(val) {
-	  console.log("key=" + val);
-	  master.update('key', 'value').then(function() {
-	    console.log("update done");
-	    master.read('key').then(function(val) {
-	      console.log("key=" + val);
-	      master.head().then(function (head) {
-		console.log("head: " + head);
-	      });
-	    });
-	  });
-        });
-      });
-  });
+function test_in_memory() { return (
+  irmin.memRepo().then(function (repo) { return (
+  repo.branch("master").then(function (master) { return (
+  master.read(['key']).then(function(val) {
+  console.log("before update: key=" + val);
+  var meta = irmin.commitMetadata("user", "Set key"); return (
+  master.update(meta, ['key'], 'value').then(function() { return (
+  master.read(['key']).then(function(val) {
+  console.log("after update:  key=" + val); return (
+  master.head().then(function (head) {
+  console.log("head: " + head)
+  }) )}) )}) )}) )}) )}) )
+}
 
-console.log("waiting");
-setTimeout(function () { console.log("done") }, 1000);
+console.log("test_in_memory: " + test_in_memory());
