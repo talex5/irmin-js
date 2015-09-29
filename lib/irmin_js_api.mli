@@ -67,6 +67,10 @@ class type irmin = object
   method memRepo : (unit -> repo t promise t) export
   (** Create a new in-memory Irmin repository. *)
 
+  method idbRepo : (js_string t -> repo t promise t) export
+  (** Open (or create) an IndexedDB database with the given name and
+   * return an Irmin repository for it. *)
+
   method commitMetadata : (user -> js_string t -> commit_metadata) export
   (** [commit_metadata user msg] creates commit metadata with the current time and
       the given user and log message. *)

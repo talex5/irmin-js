@@ -109,11 +109,19 @@ let mem_repo () = js_promise_of begin
     R.repo config
   end
 
+let idb_repo name = js_promise_of begin
+    let module Store = Irmin.Basic(Irmin_IDB.Make)(Irmin.Contents.String) in
+    let module R = Repo(Store) in
+    let config = Irmin_IDB.config (Js.to_string name) in
+    R.repo config
+  end
+
 let resolve x = js_promise_of (return x)
 
 let () =
   let irmin : irmin Js.t = Js.Unsafe.obj [||] in
   irmin##resolve <- Js.wrap_callback resolve;
   irmin##memRepo <- Js.wrap_callback mem_repo;
+  irmin##idbRepo <- Js.wrap_callback idb_repo;
   irmin##commitMetadata <- Js.wrap_callback commit_metadata;
   Js.Unsafe.global##irmin <- irmin;

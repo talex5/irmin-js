@@ -17,6 +17,12 @@ function log(msg) {
 
 var memTest = irmin.memRepo().then(function (repo) { irmin_tests.testIrmin(repo, log) });
 console.log("test_in_memory: " + memTest);
+
+var db_name = "Irmin-JS.test";
+indexedDB.deleteDatabase(db_name);
+var idbTest = irmin.idbRepo(db_name).then(function (repo) { irmin_tests.testIrmin(repo, log) });
+console.log("test_indexedDB: " + idbTest);
+
     </script>
   </body>
 </html>
