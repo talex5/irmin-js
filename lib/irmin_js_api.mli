@@ -16,6 +16,7 @@ type value = js_string t
 type hash = js_string t
 type branch_name = js_string t
 type user = js_string t
+type mergeConflict = js_string t Opt.t
 
 class type printable = object
   method toString : (unit -> js_string t) export
@@ -41,6 +42,16 @@ class type commit = object
   (** Read a file from the head commit. *)
 end
 
+class type view = object
+  inherit printable
+
+  method read : (path -> value Opt.t promise t) export
+  (** Read a file from the view. *)
+
+  method update : (path -> value -> unit promise t) export
+  (** Update a file in the view. *)
+end
+
 class type branch = object
   inherit printable
 
@@ -53,6 +64,10 @@ class type branch = object
 
   method update : (commit_metadata -> path -> value -> unit promise t) export
   (** Write a file to a new commit and add it to the branch. *)
+
+  method withMergeView : (commit_metadata -> path -> (view t -> unit t) -> mergeConflict promise t) export
+  (** [withMergeView(msg, path, fn)] creates a view of the tip of the branch and calls the
+   * supplied function. When that resolves, the view is merged back into the branch. *)
 end
 
 class type repo = object

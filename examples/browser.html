@@ -15,13 +15,15 @@ function log(msg) {
 	document.getElementById('main').appendChild(text);
 }
 
+log("\n=== Test with in-memory store ===");
 var memTest = irmin.memRepo().then(function (repo) { irmin_tests.testIrmin(repo, log) });
-console.log("test_in_memory: " + memTest);
+log("test_in_memory: " + memTest);
 
+log("\n=== Test with IndexedDB ===");
 var db_name = "Irmin-JS.test";
 indexedDB.deleteDatabase(db_name);
 var idbTest = irmin.idbRepo(db_name).then(function (repo) { irmin_tests.testIrmin(repo, log) });
-console.log("test_indexedDB: " + idbTest);
+log("test_indexedDB: " + idbTest);
 
     </script>
   </body>

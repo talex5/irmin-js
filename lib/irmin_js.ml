@@ -6,19 +6,21 @@
 open Lwt
 open Irmin_js_api
 
+let lwt_of_js_promise p =
+  match Js.typeof p |> Js.to_string with
+  | "object" ->
+      let lwt : _ Lwt.t Js.Optdef.t = Js.Unsafe.get p (Js.string "lwtThread") in
+      Js.Optdef.get lwt (fun () -> failwith "Not an irmin-js promise!")
+  | "undefined" ->
+      return (Obj.magic ())
+  | ty -> failwith (Printf.sprintf "callback should return a promise object, not %S" ty)
+
 (** Wrap an Lwt promise to provide a Javascript promise object. *)
 let rec js_promise_of (type a) (t:a Lwt.t) : a promise Js.t =
   let and_then cb =
     js_promise_of begin
       t >>= fun v ->
-      let p = Js.Unsafe.fun_call cb [| Js.Unsafe.inject v |] in
-      match Js.typeof p |> Js.to_string with
-      | "object" ->
-          let lwt : _ Lwt.t Js.Optdef.t = Js.Unsafe.get p (Js.string "lwtThread") in
-          Js.Optdef.get lwt (fun () -> failwith "Not an irmin-js promise!")
-      | "undefined" ->
-          return (Obj.magic ())
-      | ty -> failwith (Printf.sprintf "then() callback should return a promise object, not %S" ty)
+      Js.Unsafe.fun_call cb [| Js.Unsafe.inject v |] |> lwt_of_js_promise
     end in
   let to_string () =
     let state =
@@ -53,6 +55,8 @@ let key_of_js (arr:Js.js_string Js.t Js.js_array Js.t) =
   arr##reduce_init(callback, [])
 
 module Repo (Store : Irmin.BASIC with type key = string list and type value = string) = struct
+  module View = Irmin.View(Store)
+
   let read store key =
     js_promise_of begin
       let key = key_of_js key in
@@ -69,6 +73,37 @@ module Repo (Store : Irmin.BASIC with type key = string list and type value = st
     c##toString <- Js.wrap_callback (fun () -> Printf.sprintf "<commit %S>" str_hash |> Js.string);
     c##read <- Js.wrap_callback (read store);
     return c
+
+  let wrap_view v =
+    let view : view Js.t = Js.Unsafe.obj [||] in
+    let update key value =
+      js_promise_of begin
+        let key = key_of_js key in
+        let value = Js.to_string value in
+        View.update v key value
+      end in
+    let read key =
+      js_promise_of begin
+        let key = key_of_js key in
+        View.read v key >|= function
+        | None -> Js.Opt.empty
+        | Some value -> Js.Opt.return (Js.string value)
+      end in
+    view##toString <- Js.wrap_callback (fun () -> Js.string "<view>");
+    view##update <- Js.wrap_callback update;
+    view##read <- Js.wrap_callback read;
+    view
+
+  let with_merge_view store metadata key cb =
+    let key = key_of_js key in
+    js_promise_of begin
+      Irmin.with_hrw_view (module View) (store metadata) ~path:key `Merge (fun v ->
+        let view = wrap_view v in
+        Js.Unsafe.fun_call cb [| Js.Unsafe.inject view |] |> lwt_of_js_promise
+      ) >|= function
+      | `Ok () -> Js.Opt.empty
+      | `Conflict msg -> Js.Opt.return (Js.string msg)
+    end
 
   let branch config name =
     js_promise_of begin
@@ -92,6 +127,7 @@ module Repo (Store : Irmin.BASIC with type key = string list and type value = st
       b##toString <- Js.wrap_callback (fun () -> Printf.sprintf "<branch %S>" name |> Js.string);
       b##update <- Js.wrap_callback update;
       b##read <- Js.wrap_callback (read store);
+      b##withMergeView <- Js.wrap_callback (with_merge_view store);
       return b
     end
 
