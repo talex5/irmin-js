@@ -66,6 +66,12 @@ module Repo (Store : Irmin.BASIC with type key = string list and type value = st
       | Some value -> Js.Opt.return (Js.string value)
     end
 
+  let list store path =
+    js_promise_of begin
+      Store.list (store dummy_msg) (key_of_js path) >|= fun keys ->
+      keys |> List.map key_to_js |> Array.of_list |> Js.array
+    end
+
   let commit config hash =
     let str_hash = Irmin.Hash.SHA1.to_hum hash in
     Store.of_head config id_task hash >>= fun store ->
@@ -73,6 +79,7 @@ module Repo (Store : Irmin.BASIC with type key = string list and type value = st
     c##hash <- Js.string str_hash;
     c##toString <- Js.wrap_callback (fun () -> Printf.sprintf "<commit %S>" str_hash |> Js.string);
     c##read <- Js.wrap_callback (read store);
+    c##list <- Js.wrap_callback (list store);
     return c
 
   let wrap_view v =
@@ -90,9 +97,15 @@ module Repo (Store : Irmin.BASIC with type key = string list and type value = st
         | None -> Js.Opt.empty
         | Some value -> Js.Opt.return (Js.string value)
       end in
+    let list path =
+      js_promise_of begin
+        View.list v (key_of_js path) >|= fun keys ->
+        keys |> List.map key_to_js |> Array.of_list |> Js.array
+      end in
     view##toString <- Js.wrap_callback (fun () -> Js.string "<view>");
     view##update <- Js.wrap_callback update;
     view##read <- Js.wrap_callback read;
+    view##list <- Js.wrap_callback list;
     view
 
   let with_merge_view store metadata key cb =
@@ -124,16 +137,11 @@ module Repo (Store : Irmin.BASIC with type key = string list and type value = st
           let value = Js.to_string value in
           Store.update (store task) key value
         end in
-      let list path =
-        js_promise_of begin
-          Store.list (store dummy_msg) (key_of_js path) >|= fun keys ->
-          keys |> List.map key_to_js |> Array.of_list |> Js.array
-        end in
       b##head <- Js.wrap_callback head;
       b##toString <- Js.wrap_callback (fun () -> Printf.sprintf "<branch %S>" name |> Js.string);
       b##update <- Js.wrap_callback update;
       b##read <- Js.wrap_callback (read store);
-      b##list <- Js.wrap_callback list;
+      b##list <- Js.wrap_callback (list store);
       b##withMergeView <- Js.wrap_callback (with_merge_view store);
       return b
     end

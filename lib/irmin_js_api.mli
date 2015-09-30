@@ -40,6 +40,9 @@ class type commit = object
 
   method read : (path -> value Opt.t promise t) export
   (** Read a file from the head commit. *)
+
+  method list : (path -> path js_array t promise t) export
+  (** List the direct children of [path]. *)
 end
 
 class type view = object
@@ -50,6 +53,9 @@ class type view = object
 
   method update : (path -> value -> unit promise t) export
   (** Update a file in the view. *)
+
+  method list : (path -> path js_array t promise t) export
+  (** List the direct children of [path]. *)
 end
 
 class type branch = object

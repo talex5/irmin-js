@@ -6,16 +6,16 @@
     log("\n--- testView:"); return (
     testView(master, log).then(function () {
     log("\n--- contents:"); return (
-    listContents(master, log)
+    listContents(master, ["dir"], log)
     )}))}))})
   )}
 
-  function listContents(branch, log) {
-    branch.list(["dir"]).then(function (paths) {
+  function listContents(branch, dir, log) { return (
+    branch.list(dir).then(function (paths) {
       for (var i in paths) {
 	log("/" + paths[i].join("/"));
       }
-    })
+    }))
   }
 
   function testView(branch, log) {
@@ -23,6 +23,7 @@
     var meta = irmin.commitMetadata("user", "testView"); return (
     branch.withMergeView(meta, [], function (view) { return (
       view.update(["dir", "3"], "hello").then(function () { return (
+      listContents(view, ["dir"], log).then(function () { return (
       view.read(note).then(function (one) {
       if (one === null) { return view.update(note, "Initial note") }
       // else already set
@@ -31,7 +32,7 @@
       log("Note in branch: " + v); return (
       view.read(note).then(function (v) {
       log("Note in view: " + v);
-      }))})}))})
+      }))})}))}))})
     )}).then(function (mergeConflict) {
     if (mergeConflict == null) {
       log("Merge successful")
@@ -50,7 +51,8 @@
     branch.read(['key']).then(function(val) {
     log("after update:  key=" + val); return (
     branch.head().then(function (head) {
-    log("head: " + head)
+    log("head: " + head);
+    return listContents(head, [], log);
     }) )}) )}) )})
   )}
 
