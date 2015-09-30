@@ -4,9 +4,19 @@
     repo.branch("master").then(function (master) { return (
     testSetKey(master, log).then(function () {
     log("\n--- testView:"); return (
-    testView(master, log)
-    )}))})
+    testView(master, log).then(function () {
+    log("\n--- contents:"); return (
+    listContents(master, log)
+    )}))}))})
   )}
+
+  function listContents(branch, log) {
+    branch.list(["dir"]).then(function (paths) {
+      for (var i in paths) {
+	log("/" + paths[i].join("/"));
+      }
+    })
+  }
 
   function testView(branch, log) {
     var note = ["dir", "note"];

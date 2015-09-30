@@ -65,6 +65,9 @@ class type branch = object
   method update : (commit_metadata -> path -> value -> unit promise t) export
   (** Write a file to a new commit and add it to the branch. *)
 
+  method list : (path -> path js_array t promise t) export
+  (** List the direct children of [path]. *)
+
   method withMergeView : (commit_metadata -> path -> (view t -> unit t) -> mergeConflict promise t) export
   (** [withMergeView(msg, path, fn)] creates a view of the tip of the branch and calls the
    * supplied function. When that resolves, the view is merged back into the branch. *)

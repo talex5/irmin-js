@@ -49,10 +49,11 @@ let commit_metadata owner msg =
 let dummy_msg =
   Irmin.Task.create ~date:0L ~owner:"irmin-js" "unused"
 
-let key_of_js (arr:Js.js_string Js.t Js.js_array Js.t) =
-  let callback acc seg _idx _arr =
-    Js.to_string seg :: acc in
-  arr##reduce_init(callback, [])
+let key_of_js arr =
+  Js.to_array arr |> Array.to_list |> List.map Js.to_string
+
+let key_to_js segs =
+  segs |> List.map Js.string |> Array.of_list |> Js.array
 
 module Repo (Store : Irmin.BASIC with type key = string list and type value = string) = struct
   module View = Irmin.View(Store)
@@ -123,10 +124,16 @@ module Repo (Store : Irmin.BASIC with type key = string list and type value = st
           let value = Js.to_string value in
           Store.update (store task) key value
         end in
+      let list path =
+        js_promise_of begin
+          Store.list (store dummy_msg) (key_of_js path) >|= fun keys ->
+          keys |> List.map key_to_js |> Array.of_list |> Js.array
+        end in
       b##head <- Js.wrap_callback head;
       b##toString <- Js.wrap_callback (fun () -> Printf.sprintf "<branch %S>" name |> Js.string);
       b##update <- Js.wrap_callback update;
       b##read <- Js.wrap_callback (read store);
+      b##list <- Js.wrap_callback list;
       b##withMergeView <- Js.wrap_callback (with_merge_view store);
       return b
     end
