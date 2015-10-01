@@ -19,4 +19,4 @@ addons:
     - time
     - libgmp-dev
 env:
-  - FORK_USER=talex5 FORK_BRANCH=containers OPAMYES=true OCAML_VERSION=4.01 PINS="irmin"
+  - FORK_USER=talex5 FORK_BRANCH=containers OPAMYES=true OCAML_VERSION=4.01
