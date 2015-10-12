@@ -72,9 +72,9 @@ module Repo (Store : Irmin.BASIC with type key = string list and type value = st
       keys |> List.map key_to_js |> Array.of_list |> Js.array
     end
 
-  let commit config hash =
+  let commit repo hash =
     let str_hash = Irmin.Hash.SHA1.to_hum hash in
-    Store.of_head config id_task hash >>= fun store ->
+    Store.of_commit_id id_task hash repo >>= fun store ->
     let c : commit Js.t = Js.Unsafe.obj [||] in
     c##hash <- Js.string str_hash;
     c##toString <- Js.wrap_callback (fun () -> Printf.sprintf "<commit %S>" str_hash |> Js.string);
@@ -119,17 +119,17 @@ module Repo (Store : Irmin.BASIC with type key = string list and type value = st
       | `Conflict msg -> Js.Opt.return (Js.string msg)
     end
 
-  let branch config name =
+  let branch repo name =
     js_promise_of begin
       let name = Js.to_string name in
-      Store.of_tag config id_task name >>= fun store ->
+      Store.of_branch_id id_task name repo >>= fun store ->
       let b : branch Js.t = Js.Unsafe.obj [||] in
       let head () =
         js_promise_of begin
           Store.head (store dummy_msg) >>= function
           | None -> return Js.Opt.empty
           | Some hash ->
-              commit config hash >|= Js.Opt.return
+              commit repo hash >|= Js.Opt.return
         end in
       let update task key value =
         js_promise_of begin
@@ -154,17 +154,17 @@ module Repo (Store : Irmin.BASIC with type key = string list and type value = st
 end
 
 let mem_repo () = js_promise_of begin
-    let module Store = Irmin.Basic(Irmin_mem.Make)(Irmin.Contents.String) in
+    let module Store = Irmin_mem.Make(Irmin.Contents.String)(Irmin.Ref.String)(Irmin.Hash.SHA1) in
     let module R = Repo(Store) in
     let config = Irmin_mem.config () in
-    R.repo config
+    Store.Repo.create config >>= R.repo
   end
 
 let idb_repo name = js_promise_of begin
-    let module Store = Irmin.Basic(Irmin_IDB.Make)(Irmin.Contents.String) in
+    let module Store = Irmin_IDB.Make(Irmin.Contents.String)(Irmin.Ref.String)(Irmin.Hash.SHA1) in
     let module R = Repo(Store) in
     let config = Irmin_IDB.config (Js.to_string name) in
-    R.repo config
+    Store.Repo.create config >>= R.repo
   end
 
 let resolve x = js_promise_of (return x)
